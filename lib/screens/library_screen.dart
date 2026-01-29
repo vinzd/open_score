@@ -26,6 +26,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   bool _isGridView = true;
   String _searchQuery = '';
   bool _isLoading = false;
+  String? _importProgress;
 
   @override
   void initState() {
@@ -39,10 +40,101 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     setState(() => _isLoading = false);
   }
 
-  Future<void> _importPdf() async {
-    setState(() => _isLoading = true);
-    await PdfService.instance.importPdf();
-    setState(() => _isLoading = false);
+  Future<void> _importPdfs() async {
+    setState(() {
+      _isLoading = true;
+      _importProgress = null;
+    });
+
+    final result = await PdfService.instance.importPdfs(
+      onProgress: (current, total, fileName) {
+        if (mounted) {
+          setState(() {
+            _importProgress = 'Importing $current of $total...';
+          });
+        }
+      },
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        _importProgress = null;
+      });
+
+      if (result != null && result.totalCount > 0) {
+        _showImportResult(result);
+      }
+    }
+  }
+
+  void _showImportResult(PdfImportBatchResult result) {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (result.allSucceeded) {
+      final message = result.totalCount == 1
+          ? 'Imported 1 PDF'
+          : 'Imported ${result.totalCount} PDFs';
+      messenger.showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      );
+    } else if (result.successCount == 0) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to import ${result.failureCount} PDF${result.failureCount == 1 ? '' : 's'}',
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          action: SnackBarAction(
+            label: 'Details',
+            textColor: Theme.of(context).colorScheme.onError,
+            onPressed: () => _showImportFailuresDialog(result.failures),
+          ),
+        ),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Imported ${result.successCount} of ${result.totalCount} PDFs',
+          ),
+          action: SnackBarAction(
+            label: 'Details',
+            onPressed: () => _showImportFailuresDialog(result.failures),
+          ),
+        ),
+      );
+    }
+  }
+
+  void _showImportFailuresDialog(List<PdfImportResult> failures) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import Failures'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: failures.length,
+            itemBuilder: (context, index) {
+              final failure = failures[index];
+              return ListTile(
+                leading: const Icon(Icons.error_outline, color: Colors.red),
+                title: Text(failure.fileName),
+                subtitle: Text(failure.error ?? 'Unknown error'),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openPdf(Document document) async {
@@ -85,9 +177,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           const SizedBox(height: 8),
           if (isLibraryEmpty)
             ElevatedButton.icon(
-              onPressed: _importPdf,
+              onPressed: _importPdfs,
               icon: const Icon(Icons.add),
-              label: const Text('Import PDF'),
+              label: const Text('Import PDFs'),
             ),
         ],
       ),
@@ -223,16 +315,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _isLoading ? null : _importPdf,
-        tooltip: 'Import PDF',
-        child: _isLoading
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _isLoading ? null : _importPdfs,
+        tooltip: 'Import PDFs',
+        icon: _isLoading
             ? const SizedBox(
                 width: 24,
                 height: 24,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : const Icon(Icons.add),
+        label: Text(_importProgress ?? 'Import'),
       ),
     );
   }

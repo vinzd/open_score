@@ -199,64 +199,7 @@ class PdfService {
       for (var i = 0; i < result.files.length; i++) {
         final file = result.files[i];
         onProgress?.call(i + 1, total, file.name);
-
-        try {
-          // On web, use bytes-based approach
-          if (kIsWeb) {
-            if (file.bytes == null) {
-              results.add(
-                PdfImportResult(
-                  fileName: file.name,
-                  success: false,
-                  error: 'No bytes available',
-                ),
-              );
-              continue;
-            }
-            final path = await _addPdfFromBytes(file.name, file.bytes!);
-            results.add(
-              PdfImportResult(
-                fileName: file.name,
-                success: path != null,
-                filePath: path,
-                error: path == null ? 'Failed to add PDF' : null,
-              ),
-            );
-            continue;
-          }
-
-          // On native platforms, use file path approach
-          if (file.path == null) {
-            results.add(
-              PdfImportResult(
-                fileName: file.name,
-                success: false,
-                error: 'No file path available',
-              ),
-            );
-            continue;
-          }
-
-          final destPath = await _copyToPdfDirectory(file.path!);
-          final addedPath = await addPdfToLibrary(destPath);
-          results.add(
-            PdfImportResult(
-              fileName: file.name,
-              success: addedPath != null,
-              filePath: addedPath,
-              error: addedPath == null ? 'Failed to add PDF to library' : null,
-            ),
-          );
-        } catch (e) {
-          debugPrint('PdfService: Error importing ${file.name}: $e');
-          results.add(
-            PdfImportResult(
-              fileName: file.name,
-              success: false,
-              error: e.toString(),
-            ),
-          );
-        }
+        results.add(await _importSingleFile(file));
       }
 
       return PdfImportBatchResult(results);
@@ -275,6 +218,60 @@ class PdfService {
     }
     final first = result.results.first;
     return first.success ? first.filePath : null;
+  }
+
+  /// Import a single file from the file picker result
+  Future<PdfImportResult> _importSingleFile(PlatformFile file) async {
+    try {
+      if (kIsWeb) {
+        return await _importFileFromBytes(file);
+      }
+      return await _importFileFromPath(file);
+    } catch (e) {
+      debugPrint('PdfService: Error importing ${file.name}: $e');
+      return PdfImportResult(
+        fileName: file.name,
+        success: false,
+        error: e.toString(),
+      );
+    }
+  }
+
+  /// Import a file using bytes (web platform)
+  Future<PdfImportResult> _importFileFromBytes(PlatformFile file) async {
+    if (file.bytes == null) {
+      return PdfImportResult(
+        fileName: file.name,
+        success: false,
+        error: 'No bytes available',
+      );
+    }
+    final path = await _addPdfFromBytes(file.name, file.bytes!);
+    return PdfImportResult(
+      fileName: file.name,
+      success: path != null,
+      filePath: path,
+      error: path == null ? 'Failed to add PDF' : null,
+    );
+  }
+
+  /// Import a file using file path (native platforms)
+  Future<PdfImportResult> _importFileFromPath(PlatformFile file) async {
+    if (file.path == null) {
+      return PdfImportResult(
+        fileName: file.name,
+        success: false,
+        error: 'No file path available',
+      );
+    }
+    final destPath = await _copyToPdfDirectory(file.path!);
+    final addedPath = await addPdfToLibrary(destPath);
+    return PdfImportResult(
+      fileName: file.name,
+      success: addedPath != null,
+      filePath: addedPath,
+      error: addedPath == null ? 'Failed to add PDF to library' : null,
+    );
   }
 
   /// Add a PDF from bytes (web platform)

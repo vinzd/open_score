@@ -72,39 +72,44 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final messenger = ScaffoldMessenger.of(context);
 
     if (result.allSucceeded) {
-      final message = result.totalCount == 1
-          ? 'Imported 1 PDF'
-          : 'Imported ${result.totalCount} PDFs';
-      messenger.showSnackBar(
-        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-      );
-    } else if (result.successCount == 0) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text(
-            'Failed to import ${result.failureCount} PDF${result.failureCount == 1 ? '' : 's'}',
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          action: SnackBarAction(
-            label: 'Details',
-            textColor: Theme.of(context).colorScheme.onError,
-            onPressed: () => _showImportFailuresDialog(result.failures),
-          ),
+          content: Text(_formatSuccessMessage(result.totalCount)),
+          duration: const Duration(seconds: 2),
         ),
       );
-    } else {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'Imported ${result.successCount} of ${result.totalCount} PDFs',
-          ),
-          action: SnackBarAction(
-            label: 'Details',
-            onPressed: () => _showImportFailuresDialog(result.failures),
-          ),
-        ),
-      );
+      return;
     }
+
+    final isAllFailures = result.successCount == 0;
+    final message = isAllFailures
+        ? _formatFailureMessage(result.failureCount)
+        : 'Imported ${result.successCount} of ${result.totalCount} PDFs';
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isAllFailures
+            ? Theme.of(context).colorScheme.error
+            : null,
+        action: SnackBarAction(
+          label: 'Details',
+          textColor: isAllFailures
+              ? Theme.of(context).colorScheme.onError
+              : null,
+          onPressed: () => _showImportFailuresDialog(result.failures),
+        ),
+      ),
+    );
+  }
+
+  String _formatSuccessMessage(int count) {
+    return count == 1 ? 'Imported 1 PDF' : 'Imported $count PDFs';
+  }
+
+  String _formatFailureMessage(int count) {
+    final plural = count == 1 ? '' : 's';
+    return 'Failed to import $count PDF$plural';
   }
 
   void _showImportFailuresDialog(List<PdfImportResult> failures) {

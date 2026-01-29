@@ -177,15 +177,9 @@ void main() {
       });
 
       test('would open PDF when not in selection mode', () {
-        bool isSelectionMode = false;
-        bool wouldOpenPdf = false;
-
-        // Simulate _handleDocumentTap when not in selection mode
-        if (isSelectionMode) {
-          // toggle selection
-        } else {
-          wouldOpenPdf = true;
-        }
+        const isSelectionMode = false;
+        // When not in selection mode, tapping opens the PDF
+        final wouldOpenPdf = !isSelectionMode;
 
         expect(wouldOpenPdf, isTrue);
       });
@@ -209,13 +203,12 @@ void main() {
       });
 
       test('enters selection mode when not in selection mode', () {
-        bool isSelectionMode = false;
+        var isSelectionMode = false;
         final doc = testDocuments[0];
 
         // Simulate _handleCheckboxTap when not in selection mode
-        if (isSelectionMode) {
-          // toggle selection
-        } else {
+        // When not in selection mode, checkbox tap enters selection mode
+        if (!isSelectionMode) {
           isSelectionMode = true;
           selectedIds.add(doc.id);
         }

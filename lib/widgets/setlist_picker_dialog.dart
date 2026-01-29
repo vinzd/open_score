@@ -18,6 +18,9 @@ class SetListPickerDialog extends StatefulWidget {
   }
 }
 
+/// Sentinel value used to indicate "Create new set list" option
+const int _createNewSentinel = -1;
+
 class _SetListPickerDialogState extends State<SetListPickerDialog> {
   final _setListService = SetListService();
   final _nameController = TextEditingController();
@@ -25,8 +28,9 @@ class _SetListPickerDialogState extends State<SetListPickerDialog> {
 
   List<SetList> _setLists = [];
   bool _isLoading = true;
-  int? _selectedId;
-  bool _isCreatingNew = false;
+  int? _selectedValue; // -1 for create new, positive IDs for existing lists
+
+  bool get _isCreatingNew => _selectedValue == _createNewSentinel;
 
   @override
   void initState() {
@@ -68,6 +72,12 @@ class _SetListPickerDialogState extends State<SetListPickerDialog> {
     }
   }
 
+  void _onSelectionChanged(int? value) {
+    setState(() {
+      _selectedValue = value;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -81,100 +91,90 @@ class _SetListPickerDialogState extends State<SetListPickerDialog> {
                   child: CircularProgressIndicator(),
                 ),
               )
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Create new option
-                  RadioListTile<int>(
-                    value: -1, // Sentinel value for "create new"
-                    groupValue: _isCreatingNew ? -1 : _selectedId,
-                    onChanged: (value) {
-                      setState(() {
-                        _isCreatingNew = true;
-                        _selectedId = null;
-                      });
-                    },
-                    title: const Text('Create new set list'),
-                    secondary: const Icon(Icons.add),
-                    selected: _isCreatingNew,
-                  ),
-
-                  // New set list fields
-                  if (_isCreatingNew) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Column(
-                        children: [
-                          TextField(
-                            controller: _nameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Name',
-                              border: OutlineInputBorder(),
-                            ),
-                            autofocus: true,
-                            onChanged: (_) => setState(() {}),
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: _descriptionController,
-                            decoration: const InputDecoration(
-                              labelText: 'Description (optional)',
-                              border: OutlineInputBorder(),
-                            ),
-                            maxLines: 2,
-                          ),
-                        ],
-                      ),
+            : RadioGroup<int>(
+                groupValue: _selectedValue,
+                onChanged: _onSelectionChanged,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Create new option
+                    RadioListTile<int>(
+                      value: _createNewSentinel,
+                      title: const Text('Create new set list'),
+                      secondary: const Icon(Icons.add),
+                      selected: _isCreatingNew,
                     ),
+
+                    // New set list fields
+                    if (_isCreatingNew) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Column(
+                          children: [
+                            TextField(
+                              controller: _nameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Name',
+                                border: OutlineInputBorder(),
+                              ),
+                              autofocus: true,
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _descriptionController,
+                              decoration: const InputDecoration(
+                                labelText: 'Description (optional)',
+                                border: OutlineInputBorder(),
+                              ),
+                              maxLines: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const Divider(),
+
+                    // Existing set lists
+                    if (_setLists.isNotEmpty)
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: _setLists.length,
+                          itemBuilder: (context, index) {
+                            final setList = _setLists[index];
+                            final description = setList.description;
+                            final hasDescription =
+                                description != null && description.isNotEmpty;
+
+                            return RadioListTile<int>(
+                              value: setList.id,
+                              title: Text(setList.name),
+                              subtitle: hasDescription
+                                  ? Text(
+                                      description,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    )
+                                  : null,
+                            );
+                          },
+                        ),
+                      )
+                    else if (!_isCreatingNew)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'No set lists yet. Create one above.',
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                        ),
+                      ),
                   ],
-
-                  const Divider(),
-
-                  // Existing set lists
-                  if (_setLists.isNotEmpty)
-                    Flexible(
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: _setLists.length,
-                        itemBuilder: (context, index) {
-                          final setList = _setLists[index];
-                          final description = setList.description;
-                          final hasDescription =
-                              description != null && description.isNotEmpty;
-
-                          return RadioListTile<int>(
-                            value: setList.id,
-                            groupValue: _selectedId,
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedId = value;
-                                _isCreatingNew = false;
-                              });
-                            },
-                            title: Text(setList.name),
-                            subtitle: hasDescription
-                                ? Text(
-                                    description,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  )
-                                : null,
-                          );
-                        },
-                      ),
-                    )
-                  else if (!_isCreatingNew)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'No set lists yet. Create one above.',
-                        style: TextStyle(fontStyle: FontStyle.italic),
-                      ),
-                    ),
-                ],
+                ),
               ),
       ),
       actions: [
@@ -194,14 +194,14 @@ class _SetListPickerDialogState extends State<SetListPickerDialog> {
     if (_isCreatingNew) {
       return _nameController.text.trim().isNotEmpty;
     }
-    return _selectedId != null;
+    return _selectedValue != null && _selectedValue != _createNewSentinel;
   }
 
   Future<void> _confirm() async {
     if (_isCreatingNew) {
       await _createAndSelect();
-    } else if (_selectedId != null) {
-      Navigator.pop(context, _selectedId);
+    } else if (_selectedValue != null) {
+      Navigator.pop(context, _selectedValue);
     }
   }
 }
